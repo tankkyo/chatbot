@@ -4,6 +4,55 @@ from run import app
 from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid
 from wxcloudrun.model import Counters
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
+import hashlib
+import xmltodict
+import time
+
+
+@app.route('/handle', methods=["GET", "POST"])
+def handle():
+    if request.method == "GET":
+        # 处理服务器的验证消息
+        data = request.args
+        return verify_signature(signature=data.get('signature'),
+                                timestamp=data.get('timestamp'),
+                                nonce=data.get('nonce'),
+                                echostr=data.get('echostr'))
+    if request.method == "POST":
+        # 处理公众号推送消息
+        return handle_msg(request.data)
+
+
+def verify_signature(signature: str, timestamp: str, nonce: str, echostr: str):
+    token = 'tankkyo_chatbot'
+    # 对参数进行字典排序，拼接字符串
+    temp = [timestamp, nonce, token]
+    temp.sort()
+    temp = ''.join(temp)
+    # 加密
+    if hashlib.sha1(temp.encode('utf8')).hexdigest() == signature:
+        return echostr
+    else:
+        return 'error', 403
+
+
+def handle_msg(xml: bytes):
+    req = xmltodict.parse(xml)['xml']
+    # TODO: 对于以"助手:"开头的消息，我们会调用聊天机器人与其进行对话
+    if 'text' == req.get('MsgType'):
+        msg: str = req.get('Content')
+        if msg.startswith("助手"):
+            resp = {
+                'ToUserName': req.get('FromUserName'),
+                'FromUserName': req.get('ToUserName'),
+                'CreateTime': int(time.time()),
+                'MsgType': 'text',
+                'Content': '功能开发中，未来会由机器人助手回复您的消息'
+            }
+            xml = xmltodict.unparse({'xml': resp})
+            return xml
+    # 对于其他的消息，一概不予响应
+    return 'success'
 
 
 @app.route('/')
