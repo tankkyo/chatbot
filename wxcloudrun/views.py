@@ -49,11 +49,16 @@ def handle_msg(xml: bytes):
                 'MsgType': 'text',
                 'Content': '功能开发中，未来会由机器人助手回复您的消息'
             }
-            xml = xmltodict.unparse({'xml': resp})
-            return xml
+            xml = """<xml>
+                        <ToUserName><![CDATA[{ToUserName}]]></ToUserName>
+                        <FromUserName><![CDATA[{FromUserName}]]></FromUserName>
+                        <CreateTime>{CreateTime}</CreateTime>
+                        <MsgType><![CDATA[text]]></MsgType>
+                        <Content><![CDATA[{Content}]]></Content>
+                    </xml>"""
+            return xml.format(**resp), 200, {'Content-Type': 'application/xml'}
     # 对于其他的消息，一概不予响应
     return 'success'
-
 
 @app.route('/')
 def index():
