@@ -1,12 +1,18 @@
+import hashlib
+import json
+import logging
+import time
 from datetime import datetime
+
+import xmltodict
 from flask import render_template, request
+
+from chatgpt import get_completion
+from config import token
 from run import app
 from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid
 from wxcloudrun.model import Counters
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
-import hashlib
-import xmltodict
-import time
 
 
 @app.route('/handle', methods=["GET", "POST"])
@@ -19,36 +25,39 @@ def handle():
                                 nonce=data.get('nonce'),
                                 echostr=data.get('echostr'))
     if request.method == "POST":
-        # 处理公众号推送消息
-        return handle_msg(request.data)
+        try:
+            # 处理公众号推送消息
+            if request.content_type == "application/json":
+                return handle_json_msg(request.json)
+            else:
+                return handle_xml_msg(request.data)
+        except Exception as e:
+            logging.error(e)
+            return 'error', 403
 
 
 def verify_signature(signature: str, timestamp: str, nonce: str, echostr: str):
-    token = 'tankkyo_chatbot'
     # 对参数进行字典排序，拼接字符串
     temp = [timestamp, nonce, token]
     temp.sort()
     temp = ''.join(temp)
     # 加密
-    if hashlib.sha1(temp.encode('utf8')).hexdigest() == signature:
+    sign = hashlib.sha1(temp.encode('utf8')).hexdigest()
+    if sign == signature:
+        logging.info("verify signature success!")
         return echostr
     else:
+        logging.warning(f"verify signature failed, expected={sign}, receive={signature}")
         return 'error', 403
 
 
-def handle_msg(xml: bytes):
+def handle_xml_msg(xml: bytes):
     req = xmltodict.parse(xml)['xml']
-    # TODO: 对于以"助手:"开头的消息，我们会调用聊天机器人与其进行对话
+    logging.info("receive xml message: %s" % req)
     if 'text' == req.get('MsgType'):
         msg: str = req.get('Content')
-        if msg.startswith("助手"):
-            resp = {
-                'ToUserName': req.get('FromUserName'),
-                'FromUserName': req.get('ToUserName'),
-                'CreateTime': int(time.time()),
-                'MsgType': 'text',
-                'Content': '功能开发中，未来会由机器人助手回复您的消息'
-            }
+        if msg.startswith("@chatbot"):
+            resp = _chat(req)
             xml = """<xml>
                         <ToUserName><![CDATA[{ToUserName}]]></ToUserName>
                         <FromUserName><![CDATA[{FromUserName}]]></FromUserName>
@@ -59,6 +68,31 @@ def handle_msg(xml: bytes):
             return xml.format(**resp), 200, {'Content-Type': 'application/xml'}
     # 对于其他的消息，一概不予响应
     return 'success'
+
+
+def handle_json_msg(req: dict):
+    logging.info("receive json message: %s" % req)
+    if req.get('MsgType') == 'text':
+        msg: str = req.get('Content')
+        if msg.startswith("@chatbot"):
+            resp = _chat(req)
+            return json.dumps(resp, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
+    return 'success'
+
+
+def _chat(req: dict) -> dict:
+    prompt = req.get('Content')[8:]
+    reply = get_completion(prompt)
+    logging.info(f"send prompt: {prompt}, reply={reply}")
+    resp = {
+        'ToUserName': req.get('FromUserName'),
+        'FromUserName': req.get('ToUserName'),
+        'CreateTime': int(time.time()),
+        'MsgType': 'text',
+        'Content': reply
+    }
+    return resp
+
 
 @app.route('/')
 def index():
