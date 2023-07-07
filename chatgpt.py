@@ -14,5 +14,6 @@ def get_completion(prompt, model="gpt-3.5-turbo"):
         model=model,
         messages=messages,
         temperature=0,  # this is the degree of randomness of the model's output
+        max_tokens=256
     )
     return response.choices[0].message["content"]

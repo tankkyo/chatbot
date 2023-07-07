@@ -6,6 +6,7 @@ from datetime import datetime
 
 import xmltodict
 from flask import render_template, request
+from cachetools import cached, LRUCache
 
 from chatgpt import get_completion
 from config import token
@@ -14,6 +15,8 @@ from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter
 from wxcloudrun.model import Counters
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
 
+
+cache = LRUCache(maxsize=100)
 
 @app.route('/handle', methods=["GET", "POST"])
 def handle():
@@ -80,10 +83,21 @@ def handle_json_msg(req: dict):
     return 'success'
 
 
+def cache_key(*args, **kwargs):
+    if isinstance(args, dict):
+        msg_id = args.get('MsgId')
+        return msg_id
+    else:
+        return None
+
+
+@cached(cache, key=cache_key)
 def _chat(req: dict) -> dict:
     prompt = req.get('Content')[8:]
+    start = time.time()
     reply = get_completion(prompt)
-    logging.info(f"send prompt: {prompt}, reply={reply}")
+    t = time.time() - start
+    logging.info(f"send prompt: {prompt}, reply={reply}, time={t:.2f}s")
     resp = {
         'ToUserName': req.get('FromUserName'),
         'FromUserName': req.get('ToUserName'),
@@ -92,6 +106,7 @@ def _chat(req: dict) -> dict:
         'Content': reply
     }
     return resp
+
 
 
 @app.route('/')
