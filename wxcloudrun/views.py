@@ -18,6 +18,7 @@ from wxcloudrun.response import make_succ_empty_response, make_succ_response, ma
 
 cache = LRUCache(maxsize=100)
 
+
 @app.route('/handle', methods=["GET", "POST"])
 def handle():
     if request.method == "GET":
@@ -92,10 +93,11 @@ def cache_key(*args, **kwargs):
 
 
 @cached(cache, key=cache_key)
-def _chat(req: dict) -> dict:
-    prompt = req.get('Content')[8:]
+def _chat(req: dict, max_tokens=256) -> dict:
+    prompt = f"{req.get('Content')[8:]}, 请将回复控制在{max_tokens - 10}字以内"
     start = time.time()
-    reply = get_completion(prompt)
+    logging.debug(f"send prompt: {prompt}")
+    reply = get_completion(prompt, max_tokens=max_tokens)
     t = time.time() - start
     logging.info(f"send prompt: {prompt}, reply={reply}, time={t:.2f}s")
     resp = {
