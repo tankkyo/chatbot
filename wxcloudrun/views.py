@@ -4,9 +4,9 @@ import logging
 import time
 from datetime import datetime
 
+import cachetools
 import xmltodict
 from flask import render_template, request
-from cachetools import cached, LRUCache
 
 from chatgpt import get_completion
 from config import token
@@ -15,8 +15,7 @@ from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter
 from wxcloudrun.model import Counters
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
 
-
-cache = LRUCache(maxsize=100)
+cache = cachetools.LRUCache(maxsize=100)
 
 
 @app.route('/handle', methods=["GET", "POST"])
@@ -81,19 +80,18 @@ def handle_json_msg(req: dict):
         if msg.startswith("@chatbot"):
             resp = _chat(req)
             return json.dumps(resp, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
-    return 'success'
+    elif req.get('action') == 'CheckContainerPath':
+        return 'success', 200
+    return 'success', 200
 
 
-def cache_key(*args, **kwargs):
-    if isinstance(args, dict):
-        msg_id = args.get('MsgId')
-        return msg_id
-    else:
-        return None
-
-
-@cached(cache, key=cache_key)
 def _chat(req: dict, max_tokens=256) -> dict:
+    msg_id = req.get('MsgId')
+    resp = cache.get(msg_id)
+    if resp:
+        logging.info(f"found response for msg_id={msg_id} in cache, return {resp}")
+        return resp
+
     prompt = f"{req.get('Content')[8:]}, 请将回复控制在{max_tokens - 10}字以内"
     start = time.time()
     logging.debug(f"send prompt: {prompt}")
@@ -107,8 +105,8 @@ def _chat(req: dict, max_tokens=256) -> dict:
         'MsgType': 'text',
         'Content': reply
     }
+    cache.setdefault(msg_id, resp)
     return resp
-
 
 
 @app.route('/')
