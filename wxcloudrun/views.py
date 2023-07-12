@@ -8,7 +8,8 @@ import cachetools
 import xmltodict
 from flask import render_template, request
 
-from chatgpt import get_completion
+# TODO add new chatbot class and put into config later
+from wxcloudrun.minimax import get_completion
 from config import token
 from run import app
 from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid
