@@ -6,7 +6,8 @@ _ = load_dotenv(find_dotenv())
 
 group_id = os.getenv('MINIMAX_GROUP_ID')
 api_key = os.getenv('MINIMAX_API_KEY')
-endpoint = os.getenv('MINIMAX_ENDPOINT', 'https://api.minimax.chat/v1/text/chatcompletion')
+endpoint = os.getenv('MINIMAX_ENDPOINT',
+                     'https://api.minimax.chat/v1/text/chatcompletion')
 
 
 def get_completion(prompt, model="abab5.5-chat", max_tokens=512):
@@ -30,4 +31,4 @@ def get_completion(prompt, model="abab5.5-chat", max_tokens=512):
 
 
 if __name__ == '__main__':
-    print(get_completions("大模型的资料有哪些"))
+    print(get_completion("大模型的资料有哪些"))
